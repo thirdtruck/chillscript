@@ -1,0 +1,77 @@
+#!/usr/bin/env ruby
+
+def report_error(error_description)
+  puts "My bad. #{error_description}"
+end
+
+class ChillPattern
+  attr_reader :conditions
+  attr_reader :responses
+
+  def initialize(conditions=[], responses=[])
+    @conditions = conditions
+    @responses = responses
+  end
+end
+
+class ChillVirtualMachine
+  def initialize(script)
+    @script = script
+    @state = {}
+    @patterns = []
+  end
+
+  def run
+    @script.each_line do |line|
+      case line
+      when /^when (.*)/
+        condition = $1
+        if @current_pattern
+          @patterns << @current_pattern
+        end
+        @current_pattern = ChillPattern.new([condition])
+      when /^and (.*)/
+        condition = $1
+        if @current_pattern
+          @current_pattern.conditions << condition
+        else
+          @current_pattern = ChillPattern.new([condition])
+        end
+      when /^$/ # Empty line signifies the end of a pattern
+        if @current_pattern
+          @patterns << @current_pattern
+          @current_pattern = nil
+        end
+      when /^  (.*)/
+        response = $1
+        if @current_pattern
+          @current_pattern.responses << response
+        else
+          report_error "I could be wrong, but I think you're trying to write a response to a pattern that isn't there? Did you mean to indent this? #{line}"
+        end
+      else
+        report_error "I don't understand this: #{line}"
+      end
+    end
+
+    if @current_pattern
+      @patterns << @current_pattern
+    end
+
+    puts "Under construction, buddy."
+  end
+end
+
+script = <<SCRIPT
+when greeting exists
+and time-to-greet is true
+  print greeting
+
+when START-PROGRAM
+  greeting becomes "Hello, World!"
+  time-to-greet becomes true
+SCRIPT
+
+vm = ChillVirtualMachine.new(script)
+output = vm.run
+puts output
