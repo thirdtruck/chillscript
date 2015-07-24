@@ -1,7 +1,10 @@
 #!/usr/bin/env ruby
 
-def report_error(error_description)
+require 'pp'
+
+def compilation_error(error_description)
   puts "My bad. #{error_description}"
+  exit
 end
 
 class ChillPattern
@@ -21,21 +24,26 @@ class ChillVirtualMachine
     @patterns = []
   end
 
+  def new_pattern(condition)
+    if @current_pattern
+      compilation_error "I think you're trying to start a new pattern, but haven't finished with the current one. Could you put an empty line before this so I don't get confused? Thanks! Line: #{line}"
+    else
+      @current_pattern = ChillPattern.new([condition])
+    end
+  end
+
   def run
     @script.each_line do |line|
       case line
       when /^when (.*)/
         condition = $1
-        if @current_pattern
-          @patterns << @current_pattern
-        end
-        @current_pattern = ChillPattern.new([condition])
+        new_pattern(condition)
       when /^and (.*)/
         condition = $1
         if @current_pattern
           @current_pattern.conditions << condition
         else
-          @current_pattern = ChillPattern.new([condition])
+          compilation_error "I think you're trying to make a pattern more specific, but I can't see where the pattern started. I'm confused by: #{line}"
         end
       when /^$/ # Empty line signifies the end of a pattern
         if @current_pattern
@@ -47,10 +55,10 @@ class ChillVirtualMachine
         if @current_pattern
           @current_pattern.responses << response
         else
-          report_error "I could be wrong, but I think you're trying to write a response to a pattern that isn't there? Did you mean to indent this? #{line}"
+          compilation_error "I could be wrong, but I think you're trying to write a response to a pattern that isn't there? Did you mean to indent this? #{line}"
         end
       else
-        report_error "I don't understand this: #{line}"
+        compilation_error "I don't understand this: #{line}"
       end
     end
 
@@ -58,7 +66,23 @@ class ChillVirtualMachine
       @patterns << @current_pattern
     end
 
+    match_against_start_program
+
     puts "Under construction, buddy."
+  end
+
+  def match_against_start_program
+    @patterns.each do |pattern|
+      pattern.conditions.each do |condition|
+        if condition =~ /START-PROGRAM/
+          run_responses(pattern.responses)
+        end
+      end
+    end
+  end
+
+  def run_responses(responses)
+    responses.each { |response| puts "Responding with: #{response}" }
   end
 end
 
