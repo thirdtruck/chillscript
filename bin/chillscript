@@ -2,9 +2,27 @@
 
 require 'pp'
 
-def compilation_error(error_description)
+def generic_error(error_description)
   puts "My bad. #{error_description}"
   exit
+end
+
+def compilation_error(error_description)
+  generic_error(error_description)
+end
+
+def runtime_error(error_description)
+  generic_error(error_description)
+end
+
+class ChillResponse
+  def initialize(block)
+    @block = block
+  end
+
+  def run
+    @block.call
+  end
 end
 
 class ChillPattern
@@ -15,13 +33,41 @@ class ChillPattern
     @conditions = conditions
     @responses = responses
   end
+
+  def run_responses
+    @responses.each { |response| response.run }
+  end
 end
 
 class ChillVirtualMachine
   def initialize(script)
     @script = script
-    @state = {}
+    @variables = {}
     @patterns = []
+  end
+
+  def build_response_from(string)
+    case string
+    when /(\w[\w-]*) becomes "([^"]*)"/
+      variable_name = $1.to_sym
+      value = $2
+      block = lambda { @variables[variable_name] = value }
+    when /(\w[\w-]*) becomes (true|false)/
+      variable_name = $1.to_sym
+      value = ($2 == "true")
+      block = lambda { @variables[variable_name] = value }
+    when /print (\w[\w-]*)/
+      variable_name = $1.to_sym
+      block = lambda {
+        if @variables.has_key? $variable_name
+          puts @variables[variable_name] 
+        else
+          runtime_error "I tried to print :#{variable_name}, but is hasn't been set yet. Sorry."
+        end
+      }
+    else
+      compilation_error "I don't know how to respond in this way: #{string}"
+    end
   end
 
   def new_pattern(condition)
@@ -51,7 +97,8 @@ class ChillVirtualMachine
           @current_pattern = nil
         end
       when /^  (.*)/
-        response = $1
+        response_text = $1
+        response = build_response_from(response_text)
         if @current_pattern
           @current_pattern.responses << response
         else
@@ -79,10 +126,12 @@ class ChillVirtualMachine
         end
       end
     end
+
+    pp @variables
   end
 
   def run_responses(responses)
-    responses.each { |response| puts "Responding with: #{response}" }
+    responses.each &:call
   end
 end
 
