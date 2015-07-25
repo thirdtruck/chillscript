@@ -204,15 +204,17 @@ class ChillVirtualMachine
   end
 end
 
-script = <<SCRIPT
-when greeting exists
-and time-to-greet is true
-  print greeting
+filepath = ARGV[0]
 
-when START-PROGRAM
-  greeting becomes "Hello, World!"
-  time-to-greet becomes true
-SCRIPT
+if ! filepath
+  compilation_error "Didn't see the name of a .chill file to run. Did you share one with me?"
+end
+
+if ! File.exists? filepath
+  compilation_error "Didn't find the script you shared with me. Does this file exist? File: #{filepath}"
+end
+
+script = File.read(filepath)
 
 vm = ChillVirtualMachine.new(script)
 vm.run
