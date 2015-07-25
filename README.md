@@ -6,6 +6,7 @@ A toy language that doesn't ask you to control anything, but to just enjoy the p
 
 ## Examples
 
+### examples/hello.chill
 ```
 when greeting exists
 and time-to-greet is true
@@ -17,6 +18,6 @@ when START-PROGRAM
 ```
 
 ```
-$ bin/chillscript
+$ bin/chillscript examples/hello.chill
 > Hello, World!
 ```
