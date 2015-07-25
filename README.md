@@ -17,6 +17,7 @@ when START-PROGRAM
   time-to-greet becomes true
 ```
 
+### Usage
 ```
 $ bin/chillscript examples/hello.chill
 > Hello, World!
