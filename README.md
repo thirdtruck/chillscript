@@ -2,7 +2,7 @@
 
 ## It's all cool, (dudette|dude)
 
-A toy language that doesn't ask you to control anything, but just enjoy the patterns.
+A toy language that doesn't ask you to control anything, but to just enjoy the patterns.
 
 ## Examples
 
