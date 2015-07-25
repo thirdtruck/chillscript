@@ -2,6 +2,8 @@
 
 require 'pp'
 
+VAR_NAME = '(\w[\w-]*)'
+
 def generic_error(error_description)
   puts "My bad. #{error_description}"
   exit
@@ -13,6 +15,25 @@ end
 
 def runtime_error(error_description)
   generic_error(error_description)
+end
+
+class ChillCondition
+  def initialize(variable_name, expectation)
+    @variable_name = variable_name
+    @expectation = expectation
+  end
+
+  def expectation_met?(actual_variables)
+    actual = actual_variables[@variable_name]
+
+    if @expectation.class == Regexp 
+      @expectation =~ actual
+    elsif @expectation.class == Proc 
+      @expectation.call(actual)
+    else
+      @expectation == actual
+    end
+  end
 end
 
 class ChillResponse
@@ -37,32 +58,64 @@ class ChillPattern
   def run_responses
     @responses.each { |response| response.run }
   end
+
+  def conditions_met?(actual_variables)
+    any_met = false
+    all_met = true
+
+    @conditions.each do |condition|
+      if condition.expectation_met?(actual_variables)
+        any_met = true
+      else
+        all_met = false
+      end
+    end
+
+    any_met && all_met
+  end
 end
 
 class ChillVirtualMachine
   def initialize(script)
     @script = script
-    @variables = {}
+    @variables = {
+      _program_started: false
+    }
     @patterns = []
+  end
+
+  def build_condition_from(string)
+    case string
+    when /^#{VAR_NAME} exists$/
+      variable_name = $1.to_sym
+      expected = lambda { |actual| ! actual.nil? }
+      ChillCondition.new(variable_name, expected)
+    when /^#{VAR_NAME} is (true|false)/
+      variable_name = $1.to_sym
+      expected_value = ($2 == "true")
+      ChillCondition.new(variable_name, expected_value)
+    else
+      compilation_error "I don't recognize this pattern condition: #{string}"
+    end
   end
 
   def build_response_from(string)
     case string
-    when /(\w[\w-]*) becomes "([^"]*)"/
+    when /^(\w[\w-]*) becomes "([^"]*)"$/
       variable_name = $1.to_sym
       value = $2
-      block = lambda { @variables[variable_name] = value }
-    when /(\w[\w-]*) becomes (true|false)/
+      lambda { set(variable_name, value) }
+    when /^(\w[\w-]*) becomes (true|false)$/
       variable_name = $1.to_sym
       value = ($2 == "true")
-      block = lambda { @variables[variable_name] = value }
-    when /print (\w[\w-]*)/
+      lambda { set(variable_name, value) }
+    when /^print (\w[\w-]*)$/
       variable_name = $1.to_sym
-      block = lambda {
-        if @variables.has_key? $variable_name
+      lambda {
+        if @variables.has_key? variable_name
           puts @variables[variable_name] 
         else
-          runtime_error "I tried to print :#{variable_name}, but is hasn't been set yet. Sorry."
+          runtime_error "I tried to print :#{variable_name}, but it hasn't been set yet. Sorry."
         end
       }
     else
@@ -70,10 +123,20 @@ class ChillVirtualMachine
     end
   end
 
-  def new_pattern(condition)
+  def new_start_program_pattern
+    condition = ChillCondition.new(:_program_started, false)
+    response = lambda { @variables[:_program_started] = true }
+    response = lambda { set(:_program_started, true) }
+    ChillPattern.new([condition], [response])
+  end
+
+  def new_pattern(condition_text)
     if @current_pattern
       compilation_error "I think you're trying to start a new pattern, but haven't finished with the current one. Could you put an empty line before this so I don't get confused? Thanks! Line: #{line}"
+    elsif condition_text == "START-PROGRAM"
+      @current_pattern = new_start_program_pattern
     else
+      condition = build_condition_from(condition_text)
       @current_pattern = ChillPattern.new([condition])
     end
   end
@@ -82,11 +145,12 @@ class ChillVirtualMachine
     @script.each_line do |line|
       case line
       when /^when (.*)/
-        condition = $1
-        new_pattern(condition)
+        condition_text = $1
+        new_pattern(condition_text)
       when /^and (.*)/
-        condition = $1
+        condition_text = $1
         if @current_pattern
+          condition = build_condition_from(condition_text)
           @current_pattern.conditions << condition
         else
           compilation_error "I think you're trying to make a pattern more specific, but I can't see where the pattern started. I'm confused by: #{line}"
@@ -113,25 +177,30 @@ class ChillVirtualMachine
       @patterns << @current_pattern
     end
 
-    match_against_start_program
-
-    puts "Under construction, buddy."
-  end
-
-  def match_against_start_program
-    @patterns.each do |pattern|
-      pattern.conditions.each do |condition|
-        if condition =~ /START-PROGRAM/
-          run_responses(pattern.responses)
-        end
-      end
-    end
-
-    pp @variables
+    match_against_patterns
   end
 
   def run_responses(responses)
     responses.each &:call
+  end
+
+  def set(variable_name, new_value)
+    @variables[variable_name] = new_value
+    @variable_changed = true
+  end
+
+  def match_against_patterns
+    @variable_changed = false
+
+    @patterns.each do |pattern|
+      if pattern.conditions_met?(@variables)
+        run_responses(pattern.responses)
+      end
+    end
+
+    if @variable_changed
+      match_against_patterns
+    end
   end
 end
 
@@ -146,5 +215,4 @@ when START-PROGRAM
 SCRIPT
 
 vm = ChillVirtualMachine.new(script)
-output = vm.run
-puts output
+vm.run
