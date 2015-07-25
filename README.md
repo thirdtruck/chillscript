@@ -6,7 +6,7 @@ A toy language that doesn't ask you to control anything, but to just enjoy the p
 
 ## Examples
 
-`
+```
 when greeting exists
 and time-to-greet is true
   print greeting
@@ -14,9 +14,9 @@ and time-to-greet is true
 when START-PROGRAM
   greeting becomes "Hello, World!"
   time-to-greet becomes true
-`
+```
 
-`
-$ chillscript hello.chill
+```
+$ bin/chillscript
 > Hello, World!
-`
+```
